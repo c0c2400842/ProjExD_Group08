@@ -223,6 +223,72 @@ class Enemy(pg.sprite.Sprite):
         self.rect.move_ip(self.vx, self.vy)
 
 
+class Result:
+    """
+    リザルト画面を表示するクラスです
+    """
+    def __init__(self, player_hp, boss_hp):
+        """
+        プレイヤーのhpとボスのhpを初期化します。
+        引数 player_hp, boss_hp: プレイヤーのhpとボスのhp(リアルタイム)
+        """
+        self.bg_black = pg.Surface((WIDTH, HEIGHT))
+        self.bg_black.set_alpha(100)
+        self.player_hp = player_hp
+        self.boss_hp = boss_hp
+        
+    def update(self, screen, bird, score):
+        """
+        毎フレームhpを確認します。
+        引数 screen:画面のsurface, bird:主人公のクラス, score:スコアを表示するクラス
+        戻り値:Trueならゲーム終了。Falseならばゲーム続行。
+        """
+        if self.player_hp<=0:
+            self.screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画
+            # ゲームオーバー時に，こうかとん画像を切り替え，5秒間表示させる
+            bird.change_img(8, screen)
+            #ゲームオーバー文字列を表示。フォントを怖いのにする
+            fonto = pg.font.SysFont("hg正楷書体pro",200)
+
+            # fonto = pg.font.Font(None, 80)
+            txt1 = fonto.render("Score:"+str(score.value), True, (255, 0, 0))
+            txt2 = fonto.render("Game Over", True, (255, 0, 0))
+            screen.blit(txt1, [WIDTH//2-450, HEIGHT//2])
+            screen.blit(txt2, [WIDTH//2-550, HEIGHT//2-200])
+            pg.display.update()
+            time.sleep(5)  #5秒間主人公泣いてる result用。
+            return True
+        
+        
+
+        elif self.boss_hp<=0:
+            screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画
+            #　ボス撃破時に,主人公画像を切り替え、5秒間表示させる
+            bird.change_img(6, screen)
+            #勝利文字列を表示するためにフォントをかっこいいのにする
+            fonto = pg.font.SysFont("AdobeGothicStdKalin",200)
+
+
+            #一行で勝利後の結果を表示する場合
+            # txt = fonto.render("Congratulations!! You win!! Yourscore:"+str(score.value), True, (255, 255, 0))
+            # screen.blit(txt, [WIDTH//2-550, HEIGHT//2])
+        
+
+            #3行使って勝利後の結果を表示する場合。
+            txt1 =fonto.render("Congratulations", True, (255, 255, 0))
+            txt2 = fonto.render("You win!! " ,True, (255, 255, 0))
+            txt3 = fonto.render("Yourscore :  "+str(score.value),True, (255, 255, 0))
+            screen.blit(txt1, [WIDTH//2-550, HEIGHT//2-100])
+            screen.blit(txt2, [WIDTH//2-550, HEIGHT//2+50])
+            screen.blit(txt3, [WIDTH//2-550, HEIGHT//2+200])
+
+            pg.display.update()
+            time.sleep(5)  #5秒間主人公喜んでる result
+            return True
+        return False
+        
+
+
 class Score:
     """
     打ち落とした爆弾，敵機の数をスコアとして表示するクラス
@@ -242,6 +308,9 @@ class Score:
         screen.blit(self.image, self.rect)
 
 
+
+
+
 def main():
     pg.display.set_caption("HeroShooter")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -253,7 +322,8 @@ def main():
 
     bird = Bird(3, (900, 400))
 
- 
+    # 編集必須
+    result = Result(player_hp=1, boss_hp=0)
 
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
@@ -306,62 +376,7 @@ def main():
             return
         
 
-########################result#####################
-        #result用です。消すな!! 黒背景です。
-        bg_black = pg.Surface((WIDTH, HEIGHT))
-        bg_black.set_alpha(100)
-        #result用です。消すな!!
 
-        #仮です。後で代入ください。result画面用です。ボスかプレイヤーどっちが勝利したか判定します。
-        #それぞれのHPの代入をお願いします。
-        boss_hp=0
-        player_hp=1
-        #仮です。後で代入ください。result画面用です。　連絡はいつきまで。
-
-
-        if player_hp<=0:
-            screen.blit(bg_black, [0,0])#背景　ブラックスクリーン描画
-            # ゲームオーバー時に，こうかとん画像を切り替え，5秒間表示させる
-            bird.change_img(8, screen)
-            #ゲームオーバー文字列を表示。フォントを怖いのにする
-            fonto = pg.font.SysFont("hg正楷書体pro",200)
-
-            # fonto = pg.font.Font(None, 80)
-            txt1 = fonto.render("Score:"+str(score.value), True, (255, 0, 0))
-            txt2 = fonto.render("Game Over", True, (255, 0, 0))
-            screen.blit(txt1, [WIDTH//2-450, HEIGHT//2])
-            screen.blit(txt2, [WIDTH//2-550, HEIGHT//2-200])
-            pg.display.update()
-            time.sleep(5)  #5秒間主人公泣いてる result用。
-            return
-        
-        
-
-        elif boss_hp<=0:
-            screen.blit(bg_black, [0,0])#背景　ブラックスクリーン描画
-            #　ボス撃破時に,主人公画像を切り替え、5秒間表示させる
-            bird.change_img(6, screen)
-            #勝利文字列を表示するためにフォントをかっこいいのにする
-            fonto = pg.font.SysFont("AdobeGothicStdKalin",200)
-
-
-            #一行で勝利後の結果を表示する場合
-            # txt = fonto.render("Congratulations!! You win!! Yourscore:"+str(score.value), True, (255, 255, 0))
-            # screen.blit(txt, [WIDTH//2-550, HEIGHT//2])
-        
-
-            #3行使って勝利後の結果を表示する場合。
-            txt1 =fonto.render("Congratulations", True, (255, 255, 0))
-            txt2 = fonto.render("You win!! " ,True, (255, 255, 0))
-            txt3 = fonto.render("Yourscore :  "+str(score.value),True, (255, 255, 0))
-            screen.blit(txt1, [WIDTH//2-550, HEIGHT//2-100])
-            screen.blit(txt2, [WIDTH//2-550, HEIGHT//2+50])
-            screen.blit(txt3, [WIDTH//2-550, HEIGHT//2+200])
-
-            pg.display.update()
-            time.sleep(5)  #5秒間主人公喜んでる result
-            return
-########################result#####################    
 
 
 
@@ -378,6 +393,10 @@ def main():
         exps.update()
         exps.draw(screen)
         score.update(screen)
+
+        if result.update(screen, bird, score):
+            return
+
         pg.display.update()
         tmr += 1
         clock.tick(50)
