@@ -244,7 +244,8 @@ class Result:
         戻り値:Trueならゲーム終了。Falseならばゲーム続行。
         """
         if self.player_hp<=0:
-            self.screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画
+            screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画_New
+            # self.screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画
             # ゲームオーバー時に，こうかとん画像を切り替え，5秒間表示させる
             bird.change_img(8, screen)
             #ゲームオーバー文字列を表示。フォントを怖いのにする
@@ -323,7 +324,7 @@ def main():
     bird = Bird(3, (900, 400))
 
     # 編集必須
-    result = Result(player_hp=1, boss_hp=0)
+    result = Result(player_hp=0, boss_hp=1)
 
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
