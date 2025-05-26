@@ -8,6 +8,7 @@ import pygame as pg
 
 WIDTH = 1100  # ゲームウィンドウの幅
 HEIGHT = 650  # ゲームウィンドウの高さ
+GROUND_Y = int(HEIGHT * 0.8)  #地面の高さ
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 
@@ -73,6 +74,14 @@ class Bird(pg.sprite.Sprite):
         self.rect.center = xy
         self.speed = 10
 
+        self.vx = 0  # 横方向速度
+        self.vy = 0  # 縦方向速度（ジャンプや重力）
+        self.on_ground = False #接地フラグ
+        self.jump_requested = False  # ジャンプリクエスト
+        self.gravity = 1  # 重力加速度
+        self.jump_power = -20  # ジャンプ時の初速
+        self.on_ground = False  # 地面に接しているかどうかのフラグ
+
     def change_img(self, num: int, screen: pg.Surface):
         """
         こうかとん画像を切り替え，画面に転送する
@@ -88,17 +97,43 @@ class Bird(pg.sprite.Sprite):
         引数1 key_lst：押下キーの真理値リスト
         引数2 screen：画面Surface
         """
-        sum_mv = [0, 0]
-        for k, mv in __class__.delta.items():
-            if key_lst[k]:
-                sum_mv[0] += mv[0]
-                sum_mv[1] += mv[1]
-        self.rect.move_ip(self.speed*sum_mv[0], self.speed*sum_mv[1])
-        if check_bound(self.rect) != (True, True):
-            self.rect.move_ip(-self.speed*sum_mv[0], -self.speed*sum_mv[1])
-        if not (sum_mv[0] == 0 and sum_mv[1] == 0):
-            self.dire = tuple(sum_mv)
-            self.image = self.imgs[self.dire]
+        # 横移動
+        self.vx = 0
+        if key_lst[pg.K_LEFT]:
+            self.vx = -self.speed
+            self.dire = (-1, 0)
+        if key_lst[pg.K_RIGHT]:
+            self.vx = +self.speed
+            self.dire = (+1, 0)
+
+        # ジャンプ（地面にいる時のみ）
+        if self.jump_requested and self.on_ground:
+            self.vy = -15  # 上向きジャンプ
+            self.on_ground = False
+        self.jump_requested = False  # リクエストは使い切る
+
+        # 重力適用
+        self.vy += 1  # 重力
+        self.rect.y += self.vy
+
+
+        # 位置更新
+        self.rect.x += self.vx
+        self.rect.y += self.vy
+
+        # 地面との接地判定
+        if self.rect.bottom >= GROUND_Y:
+            self.rect.bottom = GROUND_Y
+            self.vy = 0
+            self.on_ground = True
+
+        # 画面外制限（左右のみ）
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        self.image = self.imgs.get(self.dire, self.image)
         screen.blit(self.image, self.rect)
 
 
@@ -194,33 +229,52 @@ class Explosion(pg.sprite.Sprite):
         if self.life < 0:
             self.kill()
 
-
+    
 class Enemy(pg.sprite.Sprite):
     """
     敵機に関するクラス
+    地面に接地した状態で画面右側から出現
     """
-    imgs = [pg.image.load(f"fig/alien{i}.png") for i in range(1, 4)]
-    
+    enemy_imgs = [
+        pg.image.load(f"fig/devil1.png"),
+        pg.image.load(f"fig/devil4.png")
+    ]
+    imgs = [
+        pg.transform.scale(img, (int(img.get_width() * 0.3), int(img.get_height() * 0.3)))
+        for img in enemy_imgs
+    ]
+
     def __init__(self):
         super().__init__()
-        self.image = pg.transform.rotozoom(random.choice(__class__.imgs), 0, 0.8)
+        self.image = random.choice(Enemy.imgs)
         self.rect = self.image.get_rect()
-        self.rect.center = random.randint(0, WIDTH), 0
-        self.vx, self.vy = 0, +6
-        self.bound = random.randint(50, HEIGHT//2)  # 停止位置
-        self.state = "down"  # 降下状態or停止状態
-        self.interval = random.randint(50, 300)  # 爆弾投下インターバル
+
+        # 画面右端から出現、地面と接地
+        self.rect.right = WIDTH
+        self.rect.bottom = GROUND_Y
+
+        self.vx, self.vy = -5, 0  # 左向きに移動（右から左へ）
+        self.target_x = random.randint(WIDTH // 2, WIDTH - 100)  # 停止するX座標
+        self.state = "move"  # 移動中か停止中かの状態
+        self.interval = random.randint(50, 300)  # 爆弾投下間隔
+        self.frame = 0
 
     def update(self):
-        """
-        敵機を速度ベクトルself.vyに基づき移動（降下）させる
-        ランダムに決めた停止位置_boundまで降下したら，_stateを停止状態に変更する
-        引数 screen：画面Surface
-        """
-        if self.rect.centery > self.bound:
-            self.vy = 0
+        self.frame += 1
+
+        # アニメーション
+        old_pos = self.rect.topleft  # 現在の位置を保持
+        self.image = Enemy.imgs[(self.frame // 15) % 2]
+        self.rect = self.image.get_rect(topleft=old_pos)  # 同じ位置に画像を差し替え
+
+        # 停止条件
+        if self.rect.left <= self.target_x:
+            self.vx = 0
             self.state = "stop"
+
         self.rect.move_ip(self.vx, self.vy)
+
+
 
 
 class Score:
@@ -246,9 +300,11 @@ def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
     bg_img = pg.image.load(f"fig/pg_bg.jpg")
+    screen.blit(bg_img, [0, 0])
+    pg.draw.rect(screen, (100, 200, 100), (0, GROUND_Y, WIDTH, HEIGHT - GROUND_Y)) #地面の描画
     score = Score()
 
-    bird = Bird(3, (900, 400))
+    bird = Bird(3, (900, GROUND_Y - 50))
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
@@ -261,8 +317,12 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    beams.add(Beam(bird))
+                if event.key == pg.K_UP:
+                    bird.jump_requested = True  #ジャンプリクエストは押された瞬間のみ
+
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
