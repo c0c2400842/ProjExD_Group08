@@ -108,15 +108,17 @@ class Bomb(pg.sprite.Sprite):
     """
     colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255), (0, 255, 255)]
 
-    def __init__(self, emy: "Enemy", bird: Bird):
+    def __init__(self, emy: "Enemy", bird: Bird, large = False):
         """
         爆弾円Surfaceを生成する
         引数1 emy：爆弾を投下する敵機
         引数2 bird：攻撃対象のこうかとん
         """
         super().__init__()
-        rad = random.randint(10, 50)  # 爆弾円の半径：10以上50以下の乱数
+        rad = 70 if large else random.randint(10, 50)  # 爆弾円の半径：10以上50以下の乱数
         self.image = pg.Surface((2*rad, 2*rad))
+        color = (255, 0, 0)
+        # self.image = pg.Surface((2*rad, 2*rad))
         color = random.choice(__class__.colors)  # 爆弾円の色：クラス変数からランダム選択
         pg.draw.circle(self.image, color, (rad, rad), rad)
         self.image.set_colorkey((0, 0, 0))
@@ -135,6 +137,45 @@ class Bomb(pg.sprite.Sprite):
         self.rect.move_ip(self.speed*self.vx, self.speed*self.vy)
         if check_bound(self.rect) != (True, True):
             self.kill()
+
+class Flame(pg.sprite.Sprite):
+    """
+    Flameクラス：
+    ・警告（半透明赤) → 一時的に非表示  → 攻撃（不透明赤） → 消える
+    """
+    def __init__(self, x: int):
+        super().__init__()
+        self.image = pg.Surface((20, HEIGHT), pg.SRCALPHA)
+        self.rect = self.image.get_rect()
+        self.rect.left = x
+        self.rect.top = 0
+        self.mode = "warning"
+        self.warn_timer = 90  # 各状態表示時間
+        self.pause_timer = 30
+        self.attack_timer = 120
+
+    def update(self):
+        if self.mode == "warning":  # 警告状態
+            self.image.fill((255, 0, 0, 100))  # 半透明赤
+            self.warn_timer -= 1
+            if self.warn_timer <= 0:
+                self.mode = "pause"
+
+        elif self.mode == "pause":  #　攻撃前状態
+            self.image.fill((0, 0, 0, 0))  # 完全に透明
+            self.pause_timer -= 1
+            if self.pause_timer <= 0:
+                self.mode = "attack"
+
+        elif self.mode == "attack":  # 攻撃状態
+            self.image.fill((255, 0, 0, 255))  # 不透明赤
+            self.attack_timer -= 1
+            if self.attack_timer <= 0:
+                self.kill()
+
+    @property
+    def active(self):
+        return self.mode == "attack"
 
 
 class Beam(pg.sprite.Sprite):
@@ -223,6 +264,86 @@ class Enemy(pg.sprite.Sprite):
         self.rect.move_ip(self.vx, self.vy)
 
 
+class Boss(pg.sprite.Sprite):
+    """
+    ボスキャラクターのクラス。
+    """
+    def __init__(self):
+        super().__init__()
+        self.image = pg.transform.rotozoom(pg.image.load("fig/BOSS.png"), 0, 0.2)
+        self.rect = self.image.get_rect(center=(WIDTH//2, -100))
+        self.maxhp = 50  # ボスHP
+        self.hp = self.maxhp
+        self.attack_timer = 0
+        self.state = "enter"  # 画面外から登場。初期状態
+        self.attack_pattern = random.choice(["bombing", "flame", "cannon"])  # ボスの攻撃パターん
+        self.direction = 1  # 横移動方向
+        self.bomb_cooldown = 0  # 爆弾のタイマー
+        self.flame_timer = 0
+        self.flame = []  # flameの攻撃座標リスト
+        self.ascending = True  # boming攻撃上昇中か確認
+        self.repeat_bomb= 0
+
+    def update(self, bird: Bird, bombs: pg.sprite.Group, flames: pg.sprite.Group):
+        if self.state == "enter":
+            if self.rect.right <= WIDTH:
+                self.rect.center = (WIDTH - 100, HEIGHT // 2 + 50)  # 画面右側座標
+                self.state = "idle"
+        elif self.state == "idle":  # 攻撃のクールダウン
+            self.attack_timer += 1
+            if self.attack_timer > 100:  # idle移行後100フレームたったら
+                self.attack_pattern = random.choice(["bombing", "flame", "cannon"])  # ３種の攻撃からランダムに選択
+                self.attack_timer = 0
+                self.bomb_cooldown = 0
+                self.state = self.attack_pattern
+        elif self.state == "bombing":  # 一定上昇後、横移動しながら一定間隔でbombを落とす
+            if self.ascending:  # 上昇
+                self.rect.centery -= 2
+                if self.rect.centery < HEIGHT // 4:
+                    self.ascending = False
+            else:
+                if self.bomb_cooldown % 50 == 0 and self.repeat_bomb < 5:  # 50フレームごとに爆弾
+                    bombs.add(Bomb(self, bird))
+                    self.repeat_bomb += 1
+                self.bomb_cooldown += 1
+                self.rect.move_ip(-4 * self.direction, 0)
+                if self.rect.left <= 0 or self.rect.right >= WIDTH:  # 左端に届いたら元に戻る
+                    self.direction *= -1
+                    self.state = "return"
+        elif self.state == "flame":  # ３か所に警告後数秒後にflameクラスの攻撃
+            if not self.flame:
+                for _ in range(3):
+                    x = random.randint(0, WIDTH - 20)
+                    self.flame.append(x)  #　ランダムなx座標を選択リストに追加
+                self.flame_warn_timer = 60  #　警告時間
+            elif self.flame_warn_timer > 0:
+                self.flame_warn_timer -= 1
+            else:
+                for x in self.flame:
+                    flames.add(Flame(x))
+                self.state = "return"
+        elif self.state == "cannon":  # 大きなbombをプレイヤー方向に１つ発射
+            b = Bomb(self, bird, large = True)  # 爆弾サイズをTrueの攻撃だけ固定化
+            b.rect.center = (self.rect.centerx, self.rect.centery)
+            bombs.add(b)
+            self.state = "return"
+        elif self.state == "return":  # 初期位置に戻る
+            self.rect.center = (WIDTH - 100,HEIGHT // 2 + 50)
+            self.state = "idle"  #　攻撃大気に移行
+            self.flame = []  #　攻撃座標のリセット
+            self.ascending = True  # 上昇状態を初期化
+            self.repeat_bomb = 0  # boming攻撃のリセット
+
+    def draw_hp(self, screen):  # bossのhp表記
+        bar_width = 400  # 横幅
+        hp = self.hp / self.maxhp
+        pg.draw.rect(screen, (0, 0, 0),(298, 8, bar_width+4, 24))  #黒い枠
+        pg.draw.rect(screen, (255, 0, 0), (300, 10, bar_width*hp, 20))
+        font = pg.font.Font(None, 36)
+        label = font.render("BOSS", True, (255, 0, 0))
+        screen.blit(label, ( 220, 10))
+
+
 class Score:
     """
     打ち落とした爆弾，敵機の数をスコアとして表示するクラス
@@ -245,7 +366,7 @@ class Score:
 def main():
     pg.display.set_caption("真！こうかとん無双")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
-    bg_img = pg.image.load(f"fig/pg_bg.jpg")
+    bg_img = pg.transform.rotozoom(pg.image.load(f"fig/22823124.jpg"),0, 1.1)
     score = Score()
 
     bird = Bird(3, (900, 400))
@@ -253,9 +374,14 @@ def main():
     beams = pg.sprite.Group()
     exps = pg.sprite.Group()
     emys = pg.sprite.Group()
+    bosses = pg.sprite.Group()
+    flames = pg.sprite.Group()
 
     tmr = 0
     clock = pg.time.Clock()
+    boss_mode = False
+    boss_spawned = False
+     
     while True:
         key_lst = pg.key.get_pressed()
         for event in pg.event.get():
@@ -265,7 +391,22 @@ def main():
                 beams.add(Beam(bird))
         screen.blit(bg_img, [0, 0])
 
-        if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
+        if tmr == 500 and not boss_spawned:  # tmrフレーム後に赤い警告をだし、ボス登場
+            red_overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
+            red_overlay.fill((255, 0, 0, 100))  #赤画面
+            bg_img = pg.transform.rotozoom(pg.image.load(f"fig/22828803.jpg"),0, 1.1)  # 背景の切り替え
+            for _ in range(10):
+                screen.blit(bg_img, [0, 0])
+                screen.blit(red_overlay, [0, 0])
+                pg.display.update()
+                time.sleep(0.1)
+            emys.empty()
+            boss = Boss()
+            bosses.add(boss)
+            boss_mode = True
+            boss_spawned = True
+
+        if not boss_mode and tmr % 200 == 0:
             emys.add(Enemy())
 
         for emy in emys:
@@ -288,6 +429,19 @@ def main():
             pg.display.update()
             time.sleep(2)
             return
+        
+        for flame in flames:  # 炎柱攻撃との衝突判定
+            if flame.active and bird.rect.colliderect(flame.rect):
+                bird.change_img(8, screen)
+                pg.display.update()
+                time.sleep(2)
+                return
+        
+        for boss in pg.sprite.groupcollide(bosses, beams, False, True):  #ビームがボスに当たる処理
+            boss.hp -= 1
+            if boss.hp <= 0:
+                boss.kill()
+                score.value += 100
 
         bird.update(key_lst, screen)
         beams.update()
@@ -296,8 +450,15 @@ def main():
         emys.draw(screen)
         bombs.update()
         bombs.draw(screen)
+        flames.update()
+        flames.draw(screen)
         exps.update()
         exps.draw(screen)
+        if boss_mode:
+            bosses.draw(screen)
+            for boss in bosses:
+                boss.draw_hp(screen)
+                bosses.update(bird, bombs, flames)
         score.update(screen)
         pg.display.update()
         tmr += 1
