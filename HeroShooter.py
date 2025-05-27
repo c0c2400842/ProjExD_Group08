@@ -619,7 +619,7 @@ def main():
                 pg.display.update()  
                 time.sleep(2)  
                 return  
-        # --- 変更ここまで --- 
+        # --- 変更ここまで! --- 
 
         
         
