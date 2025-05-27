@@ -92,8 +92,6 @@ class Bird(pg.sprite.Sprite):
         引数1 num：こうかとん画像ファイル名の番号
         引数2 screen：画面Surface
         """
-        self.image = pg.transform.rotozoom(pg.image.load(f"fig/{num}.png"), 0, 0.9)
-        screen.blit(self.image, self.rect)
 
     def update(self, key_lst: list[bool], screen: pg.Surface):
         """
@@ -487,6 +485,47 @@ class Boss(pg.sprite.Sprite):
         screen.blit(label, ( 220, 10))
 
 
+class HP:
+    """
+    プレイヤーのHPを管理するクラス
+    """
+    def __init__(self, font_path:str):
+        self.font = pg.font.Font(font_path, 50)
+        self.color = (255, 0, 0)
+        self.max_life = 3
+        self.current_life = self.max_life
+        self.heart_image = pg.image.load("color_heart2.png")
+        self.no_heart_image = pg.image.load("no_heart1.png")
+        self.heart_image = pg.transform.scale(self.heart_image, (40, 40))  # ハートのサイズを30x30に変更
+        self.no_heart_image = pg.transform.scale(self.no_heart_image, (40, 40)) # ハートのサイズを30x30に変更
+        self.rects = [self.heart_image for _ in range(self.max_life)]
+
+    def update(self, screen:pg.Surface):
+        """
+        HPを画面に描画する
+        """
+        hp_text = self.font.render("HP", True, self.color)
+        screen.blit(hp_text, (WIDTH - 250, 20)) # HPテキストの位置
+        for i in range(self.max_life):
+            heart_rect = self.rects[i].get_rect()
+            heart_rect.topleft = (WIDTH - 170 + i * 50, 30) # ハートの位置
+            screen.blit(self.rects[i], heart_rect)
+
+    def hit(self):
+        """
+        プレイヤーが攻撃を受けたときにHPを減少させる  
+        """
+        if self.current_life > 0:
+            self.rects[self.current_life - 1] = self.no_heart_image  # 現在のライフのハートを切り替える
+            self.rects[self.current_life - 1] = self.no_heart_image       
+            self.current_life -= 1
+
+    def draw(self, screen:pg.Surface):
+        """
+        HPが減った時のハートの描画
+        """
+        self.update(screen)  # 現在のHPを描画
+
 
 class Score:
     """
@@ -516,7 +555,7 @@ def main():
     bg_img = pg.transform.rotozoom(pg.image.load(f"fig/22823124.jpg"),0, 1.1)
     screen.blit(bg_img, [0, 0])
     score = Score()
-
+    hp = HP("disturbed-zrrgd.ttf") # HPクラスのインスタンスを作成
    
 
 
@@ -605,10 +644,18 @@ def main():
 
         for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
             bird.change_img(8, screen)  # こうかとん悲しみエフェクト
-            score.update(screen)
+            hp.hit()# HPを減少させる
+
+
+            # ここで時間を短縮
             pg.display.update()
-            time.sleep(2)
-            return
+            hp.draw(screen)
+            score.update(screen)
+
+            if hp.current_life <= 0:
+                pg.display.update()  #最後の状態を描画
+                time.sleep(2) 
+                return # HPが0になったらゲームオーバー
 
         # --- 変更ここから ---
         # こうかとんと爆弾の衝突判定
@@ -656,12 +703,13 @@ def main():
         flames.update()
         flames.draw(screen)
         exps.update()
-        exps.draw(screen)
+        exps.draw(screen) 
         if boss_mode:
             bosses.draw(screen)
             for boss in bosses:
                 boss.draw_hp(screen)
                 bosses.update(bird, bombs, flames)
+        hp.update(screen) # HPを更新して描画
         score.update(screen)
 
         if result.update(screen, bird, score):
