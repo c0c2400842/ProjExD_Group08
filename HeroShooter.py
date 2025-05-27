@@ -586,27 +586,58 @@ def main():
     boss_mode = False
     boss_spawned = False
      
+
+    # スタート画面
+    start_font = pg.font.Font(None, 100)
+    start_text = start_font.render("Press SPACE to Start", True, (0,0, 0))
+    start_text_rect = start_text.get_rect(center=(WIDTH/2, HEIGHT/2))
+
+
+   
+    game_active = False
+
     while True:
         key_lst = pg.key.get_pressed()
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
             if event.type == pg.KEYDOWN:
-                if event.key == pg.K_SPACE:
-                    beams.add(Beam(bird))
-                if event.key == pg.K_UP:
-                    bird.jump_requested = True  #ジャンプリクエストは押された瞬間のみ
+                if not game_active: # ゲームがまだ開始されていない場合
+                    if event.key == pg.K_SPACE:
+                        game_active = True # スペースキーでゲーム開始
+                else: # ゲームが開始されている場合
+                    if event.key == pg.K_SPACE:
+                        beams.add(Beam(bird))
+                    if event.key == pg.K_SPACE:
+                        beams.add(Beam(bird))
+                    if event.key == pg.K_UP:
+                        bird.jump_requested = True  #ジャンプリクエストは押された瞬間のみ
                 # --- 追加ここから ---
-                if event.key == pg.K_RETURN:  # エンターキーが押されたら
+                    if event.key == pg.K_RETURN:  # エンターキーが押されたら
                     # スコアが100以上、かつ無敵状態ではない場合のみ発動
-                    if score.value >= 100 and not bird.is_invincible:
-                        score.value -= 100  # 100ポイント消費
-                        bird.is_invincible = True  # 無敵状態にする
-                        bird.invincible_timer = 300 # 無敵時間を300フレームに設定 (約6秒)
-                # --- 追加ここまで ---
+                        if score.value >= 100 and not bird.is_invincible:
+                            score.value -= 100  # 100ポイント消費
+                            bird.is_invincible = True  # 無敵状態にする
+                            bird.invincible_timer = 300 # 無敵時間を300フレームに設定 (約6秒)
+                    # --- 追加ここまで ---
+
 
         screen.blit(bg_img, [0, 0])
 
+
+         # --- 追加ここから ---
+        if not game_active:
+            screen.blit(start_text, start_text_rect)
+            pg.display.update()
+            continue # ゲームが開始されていない間はメインループの残りの処理をスキップ
+        # --- 追加ここまで ---
+
+
+
+
+
+
+            
         if tmr == 500 and not boss_spawned:  # tmrフレーム後に赤い警告をだし、ボス登場
             red_overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
             red_overlay.fill((255, 0, 0, 100))  #赤画面
@@ -621,12 +652,15 @@ def main():
             bosses.add(boss)
             boss_mode = True
             boss_spawned = True
-
-        if not boss_mode and tmr % 200 == 0:
+        
+        if tmr%200 == 0 and not boss_mode:
+                emys.add(Enemy())
+        
+        if tmr%200 == 0:
             emys.add(Enemy())
 
-        if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる  
-            emys.add(Enemy())  
+
+         
 
         for emy in emys:  
             if emy.state == "stop" and tmr%emy.interval == 0:  
@@ -668,24 +702,13 @@ def main():
                 return  
         # --- 変更ここまで! --- 
 
-        
-        
-
-
-
-
-
-
-      
-
-
         for flame in flames:  # 炎柱攻撃との衝突判定
             if flame.active and bird.rect.colliderect(flame.rect):
                 bird.change_img(8, screen)
                 pg.display.update()
                 time.sleep(2)
                 return
-        
+    
         for boss in pg.sprite.groupcollide(bosses, beams, False, True):  #ビームがボスに当たる処理
             boss.hp -= 1
             if boss.hp <= 0:
@@ -693,6 +716,7 @@ def main():
                 score.value += 100
 
 
+        
         bird.update(key_lst, screen)
         beams.update()
         beams.draw(screen)
@@ -711,12 +735,13 @@ def main():
                 bosses.update(bird, bombs, flames)
         hp.update(screen) # HPを更新して描画
         score.update(screen)
+        tmr += 1
+
 
         if result.update(screen, bird, score):
             return
 
         pg.display.update()
-        tmr += 1
         clock.tick(50)
 
 
