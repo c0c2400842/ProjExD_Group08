@@ -256,51 +256,69 @@ def main():
 
     tmr = 0
     clock = pg.time.Clock()
+
+    # スタート画面
+    start_font = pg.font.Font(None, 100)
+    start_text = start_font.render("Press SPACE to Start", True, (0,0, 0))
+    start_text_rect = start_text.get_rect(center=(WIDTH/2, HEIGHT/2))
+
+
+   
+    game_active = False
+
     while True:
-        key_lst = pg.key.get_pressed()
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 return 0
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+                if not game_active:
+                    game_active = True
+                else:
+                    beams.add(Beam(bird))
+
         screen.blit(bg_img, [0, 0])
 
-        if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
-            emys.add(Enemy())
+        if not game_active:
+            screen.blit(start_text, start_text_rect)
+        else:
+            if tmr%200 == 0:  # 200フレームに1回，敵機を出現させる
+                emys.add(Enemy())
 
-        for emy in emys:
-            if emy.state == "stop" and tmr%emy.interval == 0:
-                # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
-                bombs.add(Bomb(emy, bird))
+            for emy in emys:
+                if emy.state == "stop" and tmr%emy.interval == 0:
+                    # 敵機が停止状態に入ったら，intervalに応じて爆弾投下
+                    bombs.add(Bomb(emy, bird))
 
-        for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():  # ビームと衝突した敵機リスト
-            exps.add(Explosion(emy, 100))  # 爆発エフェクト
-            score.value += 10  # 10点アップ
-            bird.change_img(6, screen)  # こうかとん喜びエフェクト
+            for emy in pg.sprite.groupcollide(emys, beams, True, True).keys():  # ビームと衝突した敵機リスト
+                exps.add(Explosion(emy, 100))  # 爆発エフェクト
+                score.value += 10  # 10点アップ
+                bird.change_img(6, screen)  # こうかとん喜びエフェクト
 
-        for bomb in pg.sprite.groupcollide(bombs, beams, True, True).keys():  # ビームと衝突した爆弾リスト
-            exps.add(Explosion(bomb, 50))  # 爆発エフェクト
-            score.value += 1  # 1点アップ
+            for bomb in pg.sprite.groupcollide(bombs, beams, True, True).keys():  # ビームと衝突した爆弾リスト
+                exps.add(Explosion(bomb, 50))  # 爆発エフェクト
+                score.value += 1  # 1点アップ
 
-        for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
-            bird.change_img(8, screen)  # こうかとん悲しみエフェクト
+            for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
+                bird.change_img(8, screen)  # こうかとん悲しみエフェクト
+                score.update(screen)
+                pg.display.update()
+                time.sleep(2)
+                return
+
+            key_lst = pg.key.get_pressed()
+            bird.update(key_lst, screen)
+            beams.update()
+            beams.draw(screen)
+            emys.update()
+            emys.draw(screen)
+            bombs.update()
+            bombs.draw(screen)
+            exps.update()
+            exps.draw(screen)
             score.update(screen)
-            pg.display.update()
-            time.sleep(2)
-            return
+            tmr += 1
 
-        bird.update(key_lst, screen)
-        beams.update()
-        beams.draw(screen)
-        emys.update()
-        emys.draw(screen)
-        bombs.update()
-        bombs.draw(screen)
-        exps.update()
-        exps.draw(screen)
-        score.update(screen)
         pg.display.update()
-        tmr += 1
         clock.tick(50)
 
 
