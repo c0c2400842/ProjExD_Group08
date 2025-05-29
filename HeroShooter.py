@@ -137,8 +137,6 @@ class Bird(pg.sprite.Sprite):
 
         self.image = self.imgs.get(self.dire, self.image)
         # screen.blit(self.image, self.rect) 
-        
-        # --- 追加ここから ---
         # 無敵時間の処理
         if self.is_invincible:
             self.invincible_timer -= 1
@@ -154,7 +152,6 @@ class Bird(pg.sprite.Sprite):
                     self.image.set_alpha(255) # 元に戻す
         else:
             self.image.set_alpha(255) # 無敵でないときは常に不透明
-        # --- 追加ここまで ---
 
         screen.blit(self.image, self.rect)  
 
@@ -353,12 +350,15 @@ class Result:
         self.player_hp = player_hp
         self.boss_hp = boss_hp
         
-    def update(self, screen, bird, score):
+    def update(self, screen, bird, score, player_hp, boss_hp):
         """
         毎フレームhpを確認します。
         引数 screen:画面のsurface, bird:主人公のクラス, score:スコアを表示するクラス
         戻り値:Trueならゲーム終了。Falseならばゲーム続行。
         """
+        self.player_hp = player_hp
+        self.boss_hp = boss_hp
+
         if self.player_hp<=0:
             screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画_New
             # self.screen.blit(self.bg_black, [0,0])#背景　ブラックスクリーン描画
@@ -402,7 +402,8 @@ class Result:
             pg.display.update()
             time.sleep(5)  #5秒間主人公喜んでる result
             return True
-        return False
+        else:
+            return False
         
 
 class Boss(pg.sprite.Sprite):
@@ -494,8 +495,8 @@ class HP:
         self.color = (255, 0, 0)
         self.max_life = 3
         self.current_life = self.max_life
-        self.heart_image = pg.image.load("color_heart2.png")
-        self.no_heart_image = pg.image.load("no_heart1.png")
+        self.heart_image = pg.image.load("fig/color_heart2.png")
+        self.no_heart_image = pg.image.load("fig/no_heart1.png")
         self.heart_image = pg.transform.scale(self.heart_image, (40, 40))  # ハートのサイズを30x30に変更
         self.no_heart_image = pg.transform.scale(self.no_heart_image, (40, 40)) # ハートのサイズを30x30に変更
         self.rects = [self.heart_image for _ in range(self.max_life)]
@@ -546,9 +547,6 @@ class Score:
         screen.blit(self.image, self.rect)  
 
 
-
-
-
 def main():
     pg.display.set_caption("HeroShooter")
     screen = pg.display.set_mode((WIDTH, HEIGHT))
@@ -560,9 +558,9 @@ def main():
 
 
     bird = Bird(3, (900, GROUND_Y - 50))
-
+    boss = Boss()
     # 編集必須
-    result = Result(player_hp=1, boss_hp=1)
+    result = Result(player_hp=1, boss_hp=boss.hp)
 
     bombs = pg.sprite.Group()
     beams = pg.sprite.Group()
@@ -571,7 +569,6 @@ def main():
     bosses = pg.sprite.Group()
     flames = pg.sprite.Group()
 
-
     #仮です。result画面用です。
      #ゲームオーバー画面用画像の追加(簡単に呼び出せるように)
     # crying_kk_img = pg.image.load("fig/8.png")
@@ -579,8 +576,6 @@ def main():
     # screen.blit(crying_kk_img, [300, 200])
     #仮です。result画面用です。
     
-
-
     tmr = 0
     clock = pg.time.Clock()
     boss_mode = False
@@ -612,32 +607,21 @@ def main():
                         beams.add(Beam(bird))
                     if event.key == pg.K_UP:
                         bird.jump_requested = True  #ジャンプリクエストは押された瞬間のみ
-                # --- 追加ここから ---
                     if event.key == pg.K_RETURN:  # エンターキーが押されたら
                     # スコアが100以上、かつ無敵状態ではない場合のみ発動
                         if score.value >= 100 and not bird.is_invincible:
                             score.value -= 100  # 100ポイント消費
                             bird.is_invincible = True  # 無敵状態にする
                             bird.invincible_timer = 300 # 無敵時間を300フレームに設定 (約6秒)
-                    # --- 追加ここまで ---
-
+                    
 
         screen.blit(bg_img, [0, 0])
 
-
-         # --- 追加ここから ---
         if not game_active:
             screen.blit(start_text, start_text_rect)
             pg.display.update()
             continue # ゲームが開始されていない間はメインループの残りの処理をスキップ
-        # --- 追加ここまで ---
-
-
-
-
-
-
-            
+        
         if tmr == 500 and not boss_spawned:  # tmrフレーム後に赤い警告をだし、ボス登場
             red_overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
             red_overlay.fill((255, 0, 0, 100))  #赤画面
@@ -659,9 +643,6 @@ def main():
         if tmr%200 == 0:
             emys.add(Enemy())
 
-
-         
-
         for emy in emys:  
             if emy.state == "stop" and tmr%emy.interval == 0:  
                 # 敵機が停止状態に入ったら，intervalに応じて爆弾投下  
@@ -677,9 +658,9 @@ def main():
             score.value += 1  # 1点アップ  
 
         for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト
-            bird.change_img(8, screen)  # こうかとん悲しみエフェクト
-            hp.hit()# HPを減少させる
-
+            if not bird.is_invincible:  # 無敵中じゃなかったら
+                bird.change_img(8, screen)  # こうかとん悲しみエフェクト
+                hp.hit()# HPを減少させる
 
             # ここで時間を短縮
             pg.display.update()
@@ -687,11 +668,9 @@ def main():
             score.update(screen)
 
             if hp.current_life <= 0:
-                pg.display.update()  #最後の状態を描画
-                time.sleep(2) 
-                return # HPが0になったらゲームオーバー
+                if result.update(screen, bird, score, player_hp=0, boss_hp=boss.hp):
+                    return # HPが0になったらゲームオーバー
 
-        # --- 変更ここから ---
         # こうかとんと爆弾の衝突判定
         if not bird.is_invincible:  # 無敵状態でない場合のみ衝突判定を行う
             for bomb in pg.sprite.spritecollide(bird, bombs, True):  # こうかとんと衝突した爆弾リスト  
@@ -700,23 +679,21 @@ def main():
                 pg.display.update()  
                 time.sleep(2)  
                 return  
-        # --- 変更ここまで! --- 
 
         for flame in flames:  # 炎柱攻撃との衝突判定
             if flame.active and bird.rect.colliderect(flame.rect):
-                bird.change_img(8, screen)
-                pg.display.update()
-                time.sleep(2)
-                return
+                if not bird.is_invincible:  #　無敵中じゃなかったら
+                    bird.change_img(8, screen)
+                    pg.display.update()
+                    time.sleep(2)
+                    return
     
         for boss in pg.sprite.groupcollide(bosses, beams, False, True):  #ビームがボスに当たる処理
             boss.hp -= 1
             if boss.hp <= 0:
                 boss.kill()
                 score.value += 100
-
-
-        
+ 
         bird.update(key_lst, screen)
         beams.update()
         beams.draw(screen)
@@ -736,9 +713,8 @@ def main():
         hp.update(screen) # HPを更新して描画
         score.update(screen)
         tmr += 1
-
-
-        if result.update(screen, bird, score):
+        
+        if result.update(screen, bird, score, player_hp=1, boss_hp=boss.hp):
             return
 
         pg.display.update()
