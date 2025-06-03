@@ -73,10 +73,8 @@ class Bird(pg.sprite.Sprite):
         self.rect = self.image.get_rect()  
         self.rect.center = xy  
         self.speed = 10  
-        # --- 追加ここから ---
         self.is_invincible = False  # 無敵状態かどうかのフラグ
-        self.invincible_timer = 0    # 無敵時間のタイマー
-        # --- 追加ここまで ---
+        self.invincible_timer = 0    # 無敵時間のタイマ
 
         self.vx = 0  # 横方向速度
         self.vy = 0  # 縦方向速度（ジャンプや重力）
@@ -199,7 +197,7 @@ class Flame(pg.sprite.Sprite):
     """
     def __init__(self, x: int):
         super().__init__()
-        self.image = pg.Surface((20, HEIGHT), pg.SRCALPHA)
+        self.image = pg.Surface((40, HEIGHT), pg.SRCALPHA)
         self.rect = self.image.get_rect()
         self.rect.left = x
         self.rect.top = 0
@@ -434,7 +432,7 @@ class Boss(pg.sprite.Sprite):
         elif self.state == "idle":  # 攻撃のクールダウン
             self.attack_timer += 1
             if self.attack_timer > 100:  # idle移行後100フレームたったら
-                self.attack_pattern = random.choice(["bombing", "flame", "cannon"])  # ３種の攻撃からランダムに選択
+                self.attack_pattern = random.choice(["bombing", "flame", "cannon", "flame", "flame","bombing"])  # ３種の攻撃からランダムに選択
                 self.attack_timer = 0
                 self.bomb_cooldown = 0
                 self.state = self.attack_pattern
@@ -444,17 +442,18 @@ class Boss(pg.sprite.Sprite):
                 if self.rect.centery < HEIGHT // 4:
                     self.ascending = False
             else:
-                if self.bomb_cooldown % 50 == 0 and self.repeat_bomb < 5:  # 50フレームごとに爆弾
+                if self.bomb_cooldown % 50 == 0 and self.repeat_bomb < 10:  # 50フレームごとに爆弾
                     bombs.add(Bomb(self, bird))
                     self.repeat_bomb += 1
                 self.bomb_cooldown += 1
                 self.rect.move_ip(-4 * self.direction, 0)
                 if self.rect.left <= 0 or self.rect.right >= WIDTH:  # 左端に届いたら元に戻る
                     self.direction *= -1
+                if self.repeat_bomb >= 10:
                     self.state = "return"
         elif self.state == "flame":  # ３か所に警告後数秒後にflameクラスの攻撃
             if not self.flame:
-                for _ in range(3):
+                for _ in range(6):
                     x = random.randint(0, WIDTH - 20)
                     self.flame.append(x)  #　ランダムなx座標を選択リストに追加
                 self.flame_warn_timer = 60  #　警告時間
@@ -557,7 +556,7 @@ def main():
    
 
 
-    bird = Bird(3, (900, GROUND_Y - 50))
+    bird = Bird(3, (100, GROUND_Y - 50))
     boss = Boss()
     # 編集必須
     result = Result(player_hp=1, boss_hp=boss.hp)
@@ -622,7 +621,7 @@ def main():
             pg.display.update()
             continue # ゲームが開始されていない間はメインループの残りの処理をスキップ
         
-        if tmr == 500 and not boss_spawned:  # tmrフレーム後に赤い警告をだし、ボス登場
+        if tmr == 1000 and not boss_spawned:  # tmrフレーム後に赤い警告をだし、ボス登場
             red_overlay = pg.Surface((WIDTH, HEIGHT), pg.SRCALPHA)
             red_overlay.fill((255, 0, 0, 100))  #赤画面
             bg_img = pg.transform.rotozoom(pg.image.load(f"fig/22828803.jpg"),0, 1.1)  # 背景の切り替え
@@ -684,9 +683,12 @@ def main():
             if flame.active and bird.rect.colliderect(flame.rect):
                 if not bird.is_invincible:  #　無敵中じゃなかったら
                     bird.change_img(8, screen)
+                    hp.hit()
                     pg.display.update()
-                    time.sleep(2)
-                    return
+                    time.sleep(1)
+                    if hp.current_life <= 0:
+                        if result.update(screen, bird, score, player_hp=0, boss_hp=boss.hp):
+                            return
     
         for boss in pg.sprite.groupcollide(bosses, beams, False, True):  #ビームがボスに当たる処理
             boss.hp -= 1
